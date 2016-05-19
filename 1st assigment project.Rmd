@@ -1,0 +1,185 @@
+---
+title: "1st assigment"
+author: "Pep Porrà"
+date: "May, 15th 2016"
+output: html_document
+---
+
+## Basic requirements
+```{r libraries, echo=TRUE, cache=TRUE}
+library(knitr)
+```
+
+```{r setoptions, echo=TRUE, cache=TRUE}
+opts_chunk$set(echo = FALSE, cache = TRUE)
+```
+
+## 1. Read data file
+
+### Download file
+```{r, echo=TRUE, cache=TRUE}
+temp <- tempfile()
+download.file("https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2Factivity.zip", temp)
+```
+
+### unzip file
+```{r, echo=TRUE, cache=TRUE}
+unzip(temp)
+unlink(temp)
+```
+
+### read file
+```{r, echo=TRUE, cache=TRUE}
+activity <- read.csv("activity.csv", header = TRUE, stringsAsFactors = FALSE)
+```
+
+### check data
+```{r, echo=TRUE, cache=TRUE}
+str(activity)
+```
+
+```{r, echo=TRUE, cache=TRUE}
+summary(activity)
+```
+
+```{r, echo=TRUE, cache=TRUE}
+length(unique(as.Date(activity$date)))
+```
+
+```{r, echo=TRUE, cache=TRUE}
+data.frame( N = NROW(activity),
+  N_data = NROW(activity[complete.cases(activity), ]),
+  N_NA = NROW(activity) - NROW(activity[complete.cases(activity), ])
+  )
+```
+
+#### days with NA activity
+
+NA activity only applies to certain days and during the whole day
+```{r, echo=TRUE, cache=TRUE}
+df_na <- activity[!complete.cases(activity), ]
+table(df_na$date)
+```
+
+Vector with days without any data
+```{r, echo=TRUE, cache=TRUE}
+na_dates <- names(table(df_na$date))
+na_dates
+```
+
+Test
+```{r, echo=TRUE, cache=TRUE}
+2304 == 288 * length(na_dates)
+```
+
+## 2. Histogram of the total steps per day
+
+### Data: total steps per day
+```{r}
+steps_day <- tapply(activity$steps, INDEX = factor(activity$date), sum)
+```
+
+### Histogram of steps per day
+
+```{r, echo=TRUE, cache=TRUE}
+hist(steps_day,
+  xlab = "Number of steps per day",
+  main = "Histogram of steps per day", breaks = 10)
+```
+
+## 3. mean and median of steps per day
+
+```{r}
+data.frame( mean = mean(steps_day, na.rm = TRUE),
+  median = median(steps_day, na.rm = TRUE))
+```
+
+Be careful: Summary onñy takes 3 digits
+```{r}
+summary(steps_day, digits = 8)
+```
+
+## 4. Time series plot of the average number of steps taken
+
+### Data: Average activity per interval (all days averaged)
+```{r}
+activity_clean <- activity[complete.cases(activity), ]
+interval_steps <- tapply(activity_clean$steps, 
+  INDEX = factor(activity_clean$interval), mean)
+```
+
+Notation for the interval is: h*100+min where h (0, 1, ..., 23) and min (0, 5, 10, ..., 55)
+
+```{r}
+str(factor(activity_clean$interval))
+length(unique(activity_clean$interval))
+head(table(activity_clean$interval), 15)
+```
+
+```{r}
+plot(unique(activity_clean$interval), interval_steps, typ = "l",
+  main = "Average steps per 5 min interval", 
+  xlab = "5 minutes ordinal",
+  ylab = "Average steps")
+```
+
+## 5. 5-minute interval with maximum number of steps
+
+```{r}
+cond <- interval_steps == max(interval_steps)
+resp <- interval_steps[cond]
+resp
+resp_interval <- as.integer(names(resp))
+resp_h <- resp_interval %/% 100
+resp_min <- resp_interval %% 100
+```
+
+```{r}
+cat(  paste0(
+  "Maximum number of average steps (", 
+  resp, 
+  ") corresponds to 5-minutes interval ",
+  resp_interval, " (", resp_h, ":", resp_min, ")")
+)
+```
+
+## 6. Imputing missing data
+
+We already obtained dates with missing data
+```{r}
+na_dates
+```
+
+We look first if there is a trend in the activity per day
+
+```{r}
+summary(lm(steps_day ~ as.Date(names(steps_day))))
+```
+
+It does not look that there is such a trend
+
+```{r}
+plot(as.Date(unique(activity$date)), steps_day,
+  xlab = "date", ylab = "steps per day")
+abline(v=as.Date(na_dates), col = 'red', lty = 2)
+abline(reg = lm(steps_day ~ as.Date(names(steps_day)))
+  , col = "green 4", lty = 4, lwd = 2)
+```
+
+We replace the missing values by the mean of the steps per 5-minutes interval averaged over all days.
+
+```{r}
+activity_complete <- activity
+activity_complete[ activity_complete$date %in% na_dates, "steps"] <- 
+  interval_steps
+```
+
+## 7. Histogram once all missing imputed
+
+```{r}
+hist(tapply(activity_complete$steps, INDEX = factor(activity_complete$date), sum),
+  xlab = "Number of steps per day",
+  main = "Histogram of steps per day (Missing inputed)", breaks = 10)
+```
+
+
